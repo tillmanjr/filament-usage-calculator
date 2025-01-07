@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>Filament Flow Rate and Linear Speed Calculator</title>
+    <meta name="description" content="Calculate filament consumption and linear speed for 3D printing">
+    <meta name="author" content="Tillman Dickson, Jr.">
+    <meta name="reply-to" content="tillmanjr@gmail.com">
+    <meta name="url" content="https://github.com/tillmanjr">"
+    <meta name="topic" content="3D Printing">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            min-width: 500px;
+        }
+
+        h1 {
+            margin-left: 25px;
+        }
+
+        h2 {
+            margin-left: 25px;
+        }
+
+        div.foo {
+            display: flex;
+            flex-direction: column;
+            margin-left: 25px;
+            width: 400px;
+        }
+
+        div.input {
+            margin-left: 5px;
+            display: flex;
+            flex-direction: row;
+            justify-content: space-between;
+            align-items: left;
+        }
+
+        .order1 {
+            order: 1;
+        }
+
+        .order2 {
+            order: 2;
+        }
+
+        .order3 {
+            order: 3;
+        }
+
+        .order4 {
+            order: 4;
+        }
+
+        .order5 {
+            order: 5;
+        }
+
+        .order6 {
+            order: 6;
+        }
+
+        div.inputs {
+            margin-left: 25px;
+            display: grid;
+            grid-template-columns: max-content max-content;
+            grid-gap: 5px;
+        }
+
+        label {
+            margin: 0.5em;
+            display: inline-block;
+            padding-bottom: 8px;
+        }
+
+        #toggleLabel {
+            margin-left: 25px;
+            margin-right: 1px;
+            margin-top: 7px;
+            vertical-align: top;
+            font-size: x-large;
+            text-align: right;
+        }
+
+        input {
+            margin: 0.5em;
+            width: 60px;
+            display: inline-block;
+        }
+
+        #separator {
+            background-color: gray;
+        }
+
+        .validResult {
+            color: green;
+            background-color: transparent;
+            opacity: 1.0;
+        }
+
+        .invalidResult {
+            color: red;
+            background-color: red;
+            opacity: 0.25;
+        }
+
+        .toggle {
+            appearance: none;
+            position: relative;
+            display: inline-block;
+            box-sizing: content-box;
+            width: 9.0em;
+            height: 2em;
+            padding: 0.2em;
+            border: none;
+            cursor: pointer;
+            border-radius: 1.5em;
+            overflow: hidden;
+            background-color: #5b63f3;
+            transition: background ease 0.3s;
+        }
+
+        .toggle:before {
+            content: "flow-rate linear-speed";
+            display: block;
+            position: absolute;
+            z-index: 2;
+            width: 2em;
+            height: 2em;
+            font-family: system-ui;
+            font-size: 1em;
+            line-height: 2em;
+            font-weight: 500;
+            text-transform: uppercase;
+            text-indent: -6em;
+            word-spacing: 2.55em;
+            text-shadow: -1px -1px rgba(0, 0, 0, 0.15);
+            white-space: nowrap;
+            background: #fff;
+            color: #fff;
+            border-radius: 1.5em;
+            transition: transform cubic-bezier(0.3, 1.5, 0.7, 1) 0.3s;
+        }
+
+        .linearspeedcolor {
+            color: #5b63f3;
+        }
+
+        .flowratecolor {
+            color: #43a4d4;
+        }
+
+        .toggle:checked {
+            background-color: #43a4d4;
+        }
+
+        .toggle:checked:before {
+            text-indent: -6.0em;
+        }
+
+        .toggle:checked:before {
+            transform: translateX(7.0em);
+        }
+    </style>
+</head>
+
+<body onload="assignChangeListeners()">
+    <h1>Filament Calculator</h1>
+    <div>
+        <label for="toggleCalcMode" id="toggleLabel">Select calculation</label>
+        <input class="toggle" type="checkbox" id="toggleCalcMode" checked>
+    </div>
+
+    <div class="foo">
+        <div class="input order1">
+            <label for="flowRateAdjustment">Flow Rate Adjustment:</label>
+            <input type="number" id="flowRateAdjustment" name="flowRateAdjustment" required value="1">
+        </div>
+
+        <div class="input order2" id="inputlayerHeight">
+            <label for="layerHeight">Layer Height (mm):</label>
+            <input type="number" id="layerHeight" name="layerHeight" required value="0.2">
+        </div>
+
+        <div class="input order3" id="inputlayerWidth">
+            <label for="layerWidth">Layer Width (mm):</label>
+            <input type="number" id="layerWidth" name="layerWidth" required value="0.42">
+        </div>
+
+        <div class="input order4" id="inputlinearSpeedMmS">
+            <label for="linearSpeedMmS">Linear Speed (mm/s):</label>
+            <input type="number" id="linearSpeedMmS" name="linearSpeedMmS" value="150">
+        </div>
+
+        <div class="input order5" id="separator">
+            <hr />
+        </div>
+
+        <div class="input order6 flowratecolor" id="inputvolumentricFlowRate">
+            <label for="volumentricFlowRate">Volumetric Flow Rate (mm^3/s):</label>
+            <input type="number" id="volumentricFlowRate" name="volumentricFlowRate" value="0" readonly>
+        </div>
+    </div>
+
+    <script lang="javascript">
+        const invalidValue = -1
+
+        const validResultClass = 'validResult';
+        const invalidResultClass = 'invalidResult';
+        const linearspeedcolorClass = 'linearspeedcolor';
+        const flowratecolorClass = 'flowratecolor';
+        
+        const changeEventName = 'change';
+
+        const flowRateMode = 'flowRate';
+        const linearSpeedMode = 'linearSpeed';
+
+        let calculationMode = flowRateMode
+
+        function assignChangeListeners() {
+            const layerHeight = document.getElementById('layerHeight');
+            layerHeight.addEventListener(changeEventName, calculate)
+
+            const layerWidth = document.getElementById('layerWidth');
+            layerWidth.addEventListener(changeEventName, calculate)
+
+            const linearSpeedMmS = document.getElementById('linearSpeedMmS');
+            linearSpeedMmS.addEventListener(changeEventName, calculate)
+
+            const flowRateAdjustment = document.getElementById('flowRateAdjustment');
+            flowRateAdjustment.addEventListener(changeEventName, calculate)
+
+            const toggleElement = document.getElementById('toggleCalcMode');
+            toggleElement.addEventListener(changeEventName, toggleCalculationMode)
+
+            const volumentricFlowRate = document.getElementById('volumentricFlowRate');
+            volumentricFlowRate.addEventListener(changeEventName, calculate)
+        }
+
+        const checkGreaterThanZero = (value) => {
+            if (typeof value === 'number') { return value > 0 }
+            if (typeof value === 'string') {
+                const parsedValue = parseFloat(value);
+                return parsedValue > 0;
+            }
+            return false;
+        }
+
+        const composeArgs = (layerHeight, layerWidth, linearSpeedMmS, volumentricFlowRate, flowRateAdjustment) => {
+            const validAdjustment = checkGreaterThanZero(flowRateAdjustment);
+            let validArgCount = 0
+            if (checkGreaterThanZero(layerHeight)) { validArgCount++ }
+            if (checkGreaterThanZero(layerWidth)) { validArgCount++ }
+            if (checkGreaterThanZero(linearSpeedMmS)) { validArgCount++ }
+            if (checkGreaterThanZero(volumentricFlowRate)) { validArgCount++ }
+            return {
+                layerHeight,
+                layerWidth,
+                linearSpeedMmS,
+                volumentricFlowRate,
+                flowRateAdjustment,
+                validArgSet: validAdjustment && (validArgCount >= 3),
+                validArgCount,
+            }
+        }
+        const composeCalculationResults = (isValid, value) => ({ isValid, value })
+
+        const calculateFlowRate = (args) => {
+            const { layerHeight, layerWidth, linearSpeedMmS, flowRateAdjustment, validArgSet, vavidArgCount } = args;
+            if (!validArgSet) { return composeCalculationResults(false, invalidValue) }
+            if (vavidArgCount < 3) { return composeCalculationResults(false, invalidValue) }
+
+            const haveRequiredArgs = (checkGreaterThanZero(layerWidth) && checkGreaterThanZero(layerHeight) && checkGreaterThanZero(linearSpeedMmS));
+            if (!haveRequiredArgs) { return composeCalculationResults(false, invalidValue) }
+
+            const results = (linearSpeedMmS * layerWidth * layerHeight * flowRateAdjustment).toFixed(2);
+
+            return composeCalculationResults(true, results);
+        }
+
+        const calculateLinearSpeed = (args) => {
+            const { layerHeight, layerWidth, linearSpeedMmS, volumentricFlowRate, flowRateAdjustment, validArgSet, vavidArgCount } = args;
+            if (!validArgSet) { return composeCalculationResults(false, invalidValue) }
+            if (vavidArgCount < 3) { return composeCalculationResults(false, invalidValue) }
+
+            const haveRequiredArgs = (checkGreaterThanZero(layerWidth) && checkGreaterThanZero(layerHeight) && checkGreaterThanZero(volumentricFlowRate));
+            if (!haveRequiredArgs) { return composeCalculationResults(false, invalidValue) }
+
+            const results = ((volumentricFlowRate * flowRateAdjustment) / (layerWidth * layerHeight)).toFixed(2)
+
+            return composeCalculationResults(true, results)
+        }
+
+        function calculate() {
+            const volumentricFlowRateElement = document.getElementById('volumentricFlowRate');
+            const linearSpeedMmSElement = document.getElementById('linearSpeedMmS');
+
+            const flowRateAdjustment = document.getElementById('flowRateAdjustment').value;
+            const layerHeight = document.getElementById('layerHeight').value;
+            const layerWidth = document.getElementById('layerWidth').value;
+            const linearSpeedMmS = linearSpeedMmSElement.value;
+            const volumentricFlowRate = volumentricFlowRateElement.value;
+
+            const args = composeArgs(layerHeight, layerWidth, linearSpeedMmS, volumentricFlowRate, flowRateAdjustment);
+
+            const results = (calculationMode === linearSpeedMode)
+                ? calculateLinearSpeed(args)
+                : calculateFlowRate(args);
+
+            const outputElement = (calculationMode === linearSpeedMode)
+                ? linearSpeedMmSElement
+                : volumentricFlowRateElement
+
+            if (results.isValid) {
+                outputElement.value = results.value;
+                outputElement.classList.remove(invalidResultClass);
+                outputElement.classList.add(validResultClass);
+            } else {
+                outputElement.value = '0';
+
+                outputElement.classList.remove(validResultClass);
+                outputElement.classList.add(invalidResultClass);
+            }
+        }
+
+        function onCalcModeChange() {
+            const toggleElement = document.getElementById('toggleCalcMode');
+            const isChecked = toggleElement.checked === true;
+            calculationMode = isChecked ? flowRateMode : linearSpeedMode;
+
+            const linearSpeedMmS = document.getElementById('linearSpeedMmS');
+            const volumentricFlowRate = document.getElementById('volumentricFlowRate');
+
+            const linearSpeedMmSDiv = document.getElementById('inputlinearSpeedMmS');
+            const volumentricFlowRateDiv = document.getElementById('inputvolumentricFlowRate');
+
+            linearSpeedMmS.classList.remove(validResultClass);
+            linearSpeedMmS.classList.remove(invalidResultClass);
+            linearSpeedMmS.readOnly = false;
+
+            volumentricFlowRate.classList.remove(validResultClass);
+            volumentricFlowRate.classList.remove(invalidResultClass);
+            volumentricFlowRate.readOnly = false;
+
+            linearSpeedMmSDiv.classList.remove(linearspeedcolorClass);
+            linearSpeedMmSDiv.classList.remove('order6');
+            linearSpeedMmSDiv.classList.remove('order4');
+
+            volumentricFlowRateDiv.classList.remove(flowratecolorClass);
+            volumentricFlowRateDiv.classList.remove('order4');
+            volumentricFlowRateDiv.classList.remove('order6');
+
+            linearSpeedMmS.value = '0';
+            volumentricFlowRate.value = '0';
+
+            if (calculationMode === flowRateMode) {
+                linearSpeedMmSDiv.classList.add('order4');
+                volumentricFlowRateDiv.classList.add('order6');
+                volumentricFlowRateDiv.classList.add(flowratecolorClass);
+                volumentricFlowRate.readOnly = true;
+                linearSpeedMmS.focus()
+            } else {
+                volumentricFlowRateDiv.classList.add('order4');
+                linearSpeedMmSDiv.classList.add('order6');
+                linearSpeedMmSDiv.classList.add(linearspeedcolorClass);
+                linearSpeedMmS.readOnly = true
+                volumentricFlowRate.focus()
+            }
+        }
+        function toggleCalculationMode() {
+            onCalcModeChange()
+        }
+
+    </script>
+</body>
+
+</html>
